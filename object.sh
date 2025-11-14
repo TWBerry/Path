@@ -60,7 +60,7 @@ obj_store() {
     next_level_exp fg_color bg_color equiped in_inventory map map_type
     target_x target_y target_map poison_amount prev_level_exp prev_map
     lastx lasty location value gold in_npc_inv safe_map safe_x safe_y
-    safe_subtype safe_location safe_lastx safe_lasty
+    safe_subtype safe_location safe_lastx safe_lasty hp_min
   )
   {
     for k in "${keys[@]}"; do
@@ -114,7 +114,7 @@ obj_load() {
     next_level_exp fg_color bg_color equiped in_inventory map map_type
     target_x target_y target_map poison_amount prev_level_exp prev_map
     lastx lasty location value gold in_npc_inv safe_map safe_x safe_y
-    safe_subtype safe_location safe_lastx safe_lasty
+    safe_subtype safe_location safe_lastx safe_lasty hp_min
   )
   local i=0
   while IFS= read -r line && [[ $i -lt ${#keys[@]} ]]; do
@@ -144,6 +144,7 @@ healing_potion=6
 mana_potion=7
 food=8
 money=9
+scroll=10
 
 #npc subtypes
 monster=0
@@ -259,9 +260,14 @@ create_blank_object() {
   obj_ref[safe_location]=""
   obj_ref[safe_lastx]=0
   obj_ref[safe_lasty]=0
+  obj_ref[hp_min]=0
 }
 
 destroy_object() {
-  local -n obj_ref=$1
-  declare -p "$obj_ref" &>/dev/null && unset "$obj_ref"
+  local obj_name="$1"
+  [[ -z "$obj_name" || "$obj_name" =~ ^[[:space:]]+$ ]] && return 0
+  [[ ! "$obj_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && return 0
+  declare -p "$obj_name" &>/dev/null || return 0
+  local -n obj_ref="$obj_name"
+  unset "$obj_name"
 }

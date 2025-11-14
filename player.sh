@@ -253,7 +253,7 @@ save_inventory() {
   obj_store "$inventory5_ref" "save/inventory/inventory5" "$inventory5_ref"
   obj_store "$inventory6_ref" "save/inventory/inventory6" "$inventory6_ref"
   obj_store "$inventory7_ref" "save/inventory/inventory7" "$inventory7_ref"
-  obj_store "$inventory8_ref" "save/inventory/inventory8" "$inventory9_ref"
+  obj_store "$inventory8_ref" "save/inventory/inventory8" "$inventory8_ref"
   obj_store "$weapon_ref" "save/inventory/weapon" "$weapon_ref"
   obj_store "$shield_ref" "save/inventory/shield" "$shield_ref"
   obj_store "$helmet_ref" "save/inventory/helmet" "$helmet_ref"

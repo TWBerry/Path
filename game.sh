@@ -5,12 +5,14 @@ source ui.sh
 source item.sh
 source map.sh
 source player.sh
+source casting.sh
 
-VERSION="v1.0.0"
+VERSION="v1.1.0"
 
 save_game() {
   mkdir -p save
   mkdir -p save/inventory
+  save_spellbook
   save_items
   save_npcs
   save_portals
@@ -36,6 +38,7 @@ load_game() {
         read_key
         return 1
     fi
+  load_spellbook
   load_player
   load_npcs
   load_items
@@ -269,6 +272,10 @@ use() {
       print_ui "" "You eat the food and feel nourished."
       destroy_item_abs "$item_ref"
       ;;
+    10)
+     use_scroll "$item_ref"
+     destroy_item_abs "$item_ref":
+      ;;
     *)
       print_ui "" "This item cannot be used."
       ;;
@@ -370,6 +377,7 @@ main_loop() {
       r) rest ;;
       h) show_help ;;
       e) enter ;;
+      c) cast ;;
     esac
     PLAYER_X="${player_ref[x]}"
     PLAYER_Y="${player_ref[y]}"

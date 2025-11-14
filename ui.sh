@@ -374,7 +374,7 @@ use_from_inventory() {
   subtype=$(obj_get "$item_ref" "subtype")
   local item_name
   item_name=$(obj_get "$item_ref" "name")
-  if ((subtype == 6 || subtype == 7 || subtype == 8)); then
+  if ((subtype == 6 || subtype == 7 || subtype == 8 || subtype == 10)); then
     use "$item_ref"
     obj_set "player_ref" "$slot_name" ""
     print_ui "" "You used $item_name."
@@ -388,7 +388,7 @@ render_stats_comparison() {
   local compare_ref=$2
   local x=$3
   local line_y2=$4
-  local stats=(hp mana strength vitality energy dexterity defense min_damage max_damage fire_resistence cold_resistence poison_resistence lightning_resistence block_rate fire_damage_min fire_damage_max cold_damage_min cold_damage_max poison_damage poison_damage_time lightning_damage_min lightning_damage_max)
+  local stats=(hp hp_max hp_min mana strength vitality energy dexterity defense min_damage max_damage fire_resistence cold_resistence poison_resistence lightning_resistence block_rate fire_damage_min fire_damage_max cold_damage_min cold_damage_max poison_damage poison_damage_time lightning_damage_min lightning_damage_max)
   for stat in "${stats[@]}"; do
     if [[ "$stat" =~ _max$ ]]; then
       continue
@@ -1268,4 +1268,159 @@ show_help() {
   read
   stty -echo -icanon time 0 min 0
   draw
+}
+
+select_target() {
+  local spell_ref="$1"
+  local key=""
+  local cur_x=$(( VIEWPORT_WIDTH / 2 ))
+  local cur_y=$(( VIEWPORT_HEIGHT / 2 ))
+  declare -A TEMP_BUFFER=()
+  for coord in "${!FRAME_BUFFER[@]}"; do
+    TEMP_BUFFER["$coord"]="${FRAME_BUFFER[$coord]}"
+  done
+  local spell_name
+  spell_name=$(obj_get "$spell_ref" "name")
+  if [[ "$spell_name" == "Heal" ]]; then
+          apply_spell "$spell_ref" "player_ref"
+          return 0
+  fi
+
+  while true; do
+    for coord in "${!TEMP_BUFFER[@]}"; do
+      FRAME_BUFFER["$coord"]="${TEMP_BUFFER[$coord]}"
+    done
+    (( cur_x < 0 )) && cur_x=0
+    (( cur_y < 0 )) && cur_y=0
+    (( cur_x >= VIEWPORT_WIDTH )) && cur_x=$(( VIEWPORT_WIDTH - 1 ))
+    (( cur_y >= VIEWPORT_HEIGHT )) && cur_y=$(( VIEWPORT_HEIGHT - 1 ))
+    draw_interface
+    local tile="${FRAME_BUFFER["$((VIEWPORT_X + cur_x - 1)),$((VIEWPORT_Y + cur_y - 1))"]}"
+    FRAME_BUFFER["$((VIEWPORT_X + cur_x - 1)),$((VIEWPORT_Y + cur_y -1))"]="\033[47;30m${tile:- }\033[0m"
+    draw
+    key=$(read_key)
+    case "$key" in
+      $'\x1b[A') ((cur_y--)) ;;  # nahoru
+      $'\x1b[B') ((cur_y++)) ;;  # dolů
+      $'\x1b[D') ((cur_x--)) ;;  # vlevo
+      $'\x1b[C') ((cur_x++)) ;;  # vpravo
+      "") # Enter
+        local map_x=$(( PLAYER_X - VIEWPORT_WIDTH / 2 + cur_x ))
+        local map_y=$(( PLAYER_Y - VIEWPORT_HEIGHT / 2 + cur_y ))
+local npc_ref
+npc_ref=$(npc_on_xy "$map_x" "$map_y")
+if ! scan_line "$PLAYER_X" "$PLAYER_Y" "$map_x" "$map_y"; then
+  print_ui "" "Your spell cannot reach the target!"
+  return 1
+fi
+local dx=$(( PLAYER_X - map_x ))
+local dy=$(( PLAYER_Y - map_y ))
+(( dx < 0 )) && dx=$(( -dx ))
+(( dy < 0 )) && dy=$(( -dy ))
+if (( dx > 10 || dy > 10 )); then
+  print_ui "" "The target is too far away."
+  return 1
+fi
+if [[ -n "$npc_ref" ]]; then
+  apply_spell "$spell_ref" "$npc_ref"
+  return 0
+else
+  print_ui "" "There is no target here."
+fi
+        ;;
+      q | $'\x1b')  # ukončit výběr
+        return 0
+        ;;
+    esac
+  done
+}
+
+cast() {
+    clear_frame_buffer
+    draw_box 0 0 $((TERM_WIDTH - 1)) $((TERM_HEIGHT - 1))
+    v_line $((TERM_WIDTH - 36)) 1 $((TERM_HEIGHT - UI_LOG_MAX - 2))
+    h_line 0 $((TERM_HEIGHT - UI_LOG_MAX - 2)) $((TERM_WIDTH - 1))
+    print_ui_draw
+    if ((${#SPELL_REGISTRY[@]} == 0)); then
+        local msg="You do not know any spells yet."
+        local x=$(( (TERM_WIDTH - ${#msg}) / 2 ))
+        local y=$(( TERM_HEIGHT / 2 ))
+        clear_frame_buffer
+        plot_inv "$x" "$y" "$msg" "\033[1;37m"
+        draw
+        read -rsn1
+        return 0
+    fi
+    local selection=0
+    local key spell_ref spell_name spell_y i
+    while true; do
+        clear_frame_buffer
+        draw_box 0 0 $((TERM_WIDTH - 1)) $((TERM_HEIGHT - 1))
+        v_line $((TERM_WIDTH - 36)) 1 $((TERM_HEIGHT - UI_LOG_MAX - 2))
+        h_line 0 $((TERM_HEIGHT - UI_LOG_MAX - 2)) $((TERM_WIDTH - 1))
+        print_ui_draw
+        plot_inv 2 1 "SPELLBOOK:" "\033[1;33m"
+        i=0
+        for spell_ref in "${SPELL_REGISTRY[@]}"; do
+            spell_name=$(obj_get "$spell_ref" "name")
+            spell_y=$((3 + i))
+            if ((i == selection)); then
+                plot_inv 2 "$spell_y" "▶ $spell_name" "\033[47;30m"
+            else
+                plot_inv 2 "$spell_y" "  $spell_name" "\033[1;37m"
+            fi
+            ((i++))
+        done
+        spell_ref="${SPELL_REGISTRY[$selection]}"
+        local y_offset=2
+        local x_right=$((TERM_WIDTH - 34))
+        plot_inv "$x_right" "$y_offset" "Spell Info:" "\033[1;36m"
+        ((y_offset+=2))
+        for prop in fire_damage_min fire_damage_max \
+                    cold_damage_min cold_damage_max \
+                    lightning_damage_min lightning_damage_max \
+                    hp_min hp_max; do
+            local val
+            val=$(obj_get "$spell_ref" "$prop")
+            [[ -n "$val" && "$val" != "0" ]] || continue
+            local prop_name=""
+            case "$prop" in
+                fire_damage_min) prop_name="Fire Dmg Min";;
+                fire_damage_max) prop_name="Fire Dmg Max";;
+                cold_damage_min) prop_name="Cold Dmg Min";;
+                cold_damage_max) prop_name="Cold Dmg Max";;
+                lightning_damage_min) prop_name="Lightning Dmg Min";;
+                lightning_damage_max) prop_name="Lightning Dmg Max";;
+                hp_min) prop_name="Heal Min";;
+                hp_max) prop_name="Heal Max";;
+            esac
+            plot_inv "$x_right" "$y_offset" "$prop_name: $val" "\033[1;37m"
+            ((y_offset++))
+        done
+        draw
+        read -rsn1 key
+        case "$key" in
+            $'\x1b') # escape sekvence
+                read -rsn2 key
+                case "$key" in
+                    "[A") # up
+                        ((selection--))
+                        ((selection < 0)) && selection=$(( ${#SPELL_REGISTRY[@]} - 1 ))
+                        ;;
+                    "[B") # down
+                        ((selection++))
+                        ((selection >= ${#SPELL_REGISTRY[@]})) && selection=0
+                        ;;
+                esac
+                ;;
+            "") # Enter
+                spell_ref="${SPELL_REGISTRY[$selection]}"
+                select_target "$spell_ref"
+                return 0
+                ;;
+            q|Q) # možnost zrušit výběr
+                return 0
+                ;;
+        esac
+    done
 }

@@ -1426,3 +1426,68 @@ generate_overworld() {
 load_overworld() {
   change_map "overworld" 4
 }
+
+scan_line() {
+    local x0=$1
+    local y0=$2
+    local x1=$3
+    local y1=$4
+
+    # Fixed-point posun — 16 bitů za čárkou
+    local FIX_SHIFT=16
+    local FIX_ONE=$((1 << FIX_SHIFT))
+
+    # Převod na fixed-point
+    local fx0=$((x0 << FIX_SHIFT))
+    local fy0=$((y0 << FIX_SHIFT))
+    local fx1=$((x1 << FIX_SHIFT))
+    local fy1=$((y1 << FIX_SHIFT))
+
+    # Rozdíly
+    local dx=$((fx1 - fx0))
+    local dy=$((fy1 - fy0))
+
+    # Absolutní hodnoty pro krokování
+    local abs_dx=${dx#-}
+    local abs_dy=${dy#-}
+
+    local steps
+    if (( abs_dx > abs_dy )); then
+        steps=$(( abs_dx >> FIX_SHIFT ))
+    else
+        steps=$(( abs_dy >> FIX_SHIFT ))
+    fi
+    ((steps == 0)) && return 0  # stejné body – volné
+
+    # Výpočet kroků
+    local step_x=$(( dx / steps ))
+    local step_y=$(( dy / steps ))
+
+    # Startovní pozice
+    local fx=$fx0
+    local fy=$fy0
+
+    local x y tile
+
+    for ((i=0; i<=steps; i++)); do
+        x=$(( fx >> FIX_SHIFT ))
+        y=$(( fy >> FIX_SHIFT ))
+
+        # Ověření hranic mapy
+        #if ! map_in_bounds "$x" "$y"; then
+        #    return 1  # mimo mapu = neprůchozí
+        #fi
+
+        tile=$(get_map_tile_xy "$x" "$y")
+        if ! tile_is_passable "$tile"; then
+            echo "not visible to player" >> debug.log
+            return 1  # narazili jsme na překážku
+        fi
+
+        fx=$(( fx + step_x ))
+        fy=$(( fy + step_y ))
+    done
+
+    return 0
+}
+

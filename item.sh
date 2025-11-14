@@ -88,6 +88,7 @@ set_item_value() {
     local poison_damage poison_damage_time
     local lightning_damage_min lightning_damage_max
     local hp mana
+    local hp_min hp_max
     defense=$(obj_get "$item_ref" "defense")
     min_damage=$(obj_get "$item_ref" "min_damage")
     max_damage=$(obj_get "$item_ref" "max_damage")
@@ -104,8 +105,12 @@ set_item_value() {
     poison_damage_time=$(obj_get "$item_ref" "poison_damage_time")
     lightning_damage_min=$(obj_get "$item_ref" "lightning_damage_min")
     lightning_damage_max=$(obj_get "$item_ref" "lightning_damage_max")
+    hp_min=$(obj_get "$item_ref" "hp_min")
+    hp_max=$(obj_get "$item_ref" "hp_max")
     hp=$(obj_get "$item_ref" "hp")
     mana=$(obj_get "$item_ref" "mana")
+    (( value += hp_min * 5 ))
+    (( value += hp_max * 5 ))
     (( value += defense * 5 ))
     (( value += block_rate * 5 ))
     (( value += (min_damage + max_damage) * 2 ))
@@ -138,8 +143,37 @@ gen_item_name() {
     7) base_name=("Mana Potion" "Blue Potion" "Energy Flask") ;;
     8) base_name=("Bread" "Meat" "Cheese" "Ration") ;;
     9) base_name=("Gold") ;;
+   10) base_name=("Scroll")
+      suffix=(" ")
+
+local fire_min  fire_max
+local cold_min  cold_max
+local lgt_min   lgt_max
+local hp        hp_max
+
+fire_min=$(obj_get "$item_ref" "fire_damage_min")
+fire_max=$(obj_get "$item_ref" "fire_damage_max")
+cold_min=$(obj_get "$item_ref" "cold_damage_min")
+cold_max=$(obj_get "$item_ref" "cold_damage_max")
+lgt_min=$(obj_get "$item_ref" "lightning_damage_min")
+lgt_max=$(obj_get "$item_ref" "lightning_damage_max")
+hp=$(obj_get "$item_ref" "hp")
+hp_max=$(obj_get "$item_ref" "hp_max")
+
+if (( fire_min > 0 || fire_max > 0 )); then
+    suffix=("of the Fire Bolt")
+elif (( cold_min > 0 || cold_max > 0 )); then
+    suffix=("of the Ice Spike")
+elif (( lgt_min > 0 || lgt_max > 0 )); then
+    suffix=("of the Spark")
+elif (( hp_min > 0 || hp_max > 0 )); then
+    suffix=("of the Heal")
+fi
+ 
+      ;;
     *) base_name=("Item") ;;
   esac
+if (( subtype != 10 )); then
   local prefix=()
   local suffix=()
   case $perk in
@@ -173,6 +207,12 @@ gen_item_name() {
     1 | 2) full_name="$pfx $base $sfx" ;;
     3) full_name="$pfx $base $sfx" ;;
   esac
+else
+  local base="${base_name[$((RANDOM % ${#base_name[@]}))]}"
+  local sfx="${suffix[$((RANDOM % ${#suffix[@]}))]}"
+  local full_name
+  full_name="$base $sfx"
+fi
   echo "$full_name" | sed 's/  */ /g'
 }
 
@@ -188,6 +228,8 @@ create_random_normal_item() {
     subtype=6 # healing potion
   elif ((rnd < 40)); then
     subtype=7 # mana potion
+  elif ((rnd < 45)); then
+    subtype=10 # scroll
   else
     rnd=$((RANDOM % 5))
     case $rnd in
@@ -229,6 +271,32 @@ create_random_normal_item() {
       ;;
     9) # gold
       obj_set "$item_ref" "value" $((RANDOM % (level + 1) + level))
+      ;;
+   10)
+      rnd=$((RANDOM % 4))
+      case $rnd in
+      0) # fire
+        obj_set "$item_ref" "fire_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "fire_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      1) # cold
+        obj_set "$item_ref" "cold_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "cold_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      2) # lightning
+        obj_set "$item_ref" "lightning_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "lightning_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      3) # heal
+        obj_set "$item_ref" "hp_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "hp_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      esac
+      ;;
      esac
   local name
   name=$(gen_item_name 0 "$subtype")
@@ -248,6 +316,8 @@ create_random_normal_item_no_gold() {
     subtype=6 # healing potion
   elif ((rnd < 40)); then
     subtype=7 # mana potion
+  elif ((rnd < 45)); then
+    subtype=10 # scroll
   else
     rnd=$((RANDOM % 4))
     case $rnd in
@@ -285,6 +355,31 @@ create_random_normal_item_no_gold() {
     8) # food
       obj_set "$item_ref" "hp" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
       obj_set "$item_ref" "mana" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+      ;;
+   10)
+      rnd=$((RANDOM % 4))
+      case $rnd in
+      0) # fire
+        obj_set "$item_ref" "fire_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "fire_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      1) # cold
+        obj_set "$item_ref" "cold_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "cold_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      2) # lightning
+        obj_set "$item_ref" "lightning_damage_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "lightning_damage_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      3) # heal
+        obj_set "$item_ref" "hp_min" $((RANDOM % (level / 2 + 1) + level / 2 + 1))
+        obj_set "$item_ref" "hp_max" $((RANDOM % (level + 1) + level))
+        obj_set "$item_ref" "mana" 5
+        ;;
+      esac
       ;;
   esac
   local name
@@ -643,6 +738,7 @@ create_item_icon() {
     7) icon_char="P" ;; # mana potion
     8) icon_char="F" ;; # food
     9) icon_char="G" ;; # gold
+   10) icon_char="S" ;; # scroll
     *) icon_char="?" ;; # fallback
   esac
   local fg_color="39" # výchozí
@@ -653,6 +749,8 @@ create_item_icon() {
   elif [[ $subtype -eq 8 ]]; then
     fg_color="31" # červené pro jídlo
   elif [[ $subtype -eq 9 ]]; then
+    fg_color="33" # zlute pro penize
+  elif [[ $subtype -eq 10 ]]; then
     fg_color="33" # zlute pro penize
   fi
   local bg_color="40" # default černé pozadí
